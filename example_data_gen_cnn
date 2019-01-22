@@ -1,0 +1,95 @@
+# Skapa en array av config objekt som sedan slängs in i konstruktorn som kör den, problemet är att linear_in är svårt att veta.
+configs = [
+    {
+        'cnn_layers': 5,
+        'cnn_padding': 1,
+        'cnn_kernel_size': 3,
+        'cnn_first_in_channel': 3,
+        'cnn_first_out_channel': 16,
+        'linear_in': 128,
+        'linear_between': 2048
+    }
+]
+
+for config in configs:
+
+    cnn = GEN_CNN(config)
+    if use_cuda:
+        cnn.cuda()
+
+    print("Fetching data")
+    train_dataset = get_dataset("./tiny-imagenet-200/train")
+    test_dataset = get_dataset("./tiny-imagenet-200/test")
+    val_dataset = get_dataset("./tiny-imagenet-200/val")
+
+
+    train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                    batch_size=batch_size,
+                                                    shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_dataset,
+                                                    batch_size=batch_size,
+                                                    shuffle=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                                    batch_size=batch_size,
+                                                    shuffle=True)
+
+
+
+    # Loss and Optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(cnn.parameters(), lr=learning_rate)
+
+    print("Begin training")
+    # Train the Model
+    for epoch in range(num_epochs):
+        t1 = time()
+
+        for i, (images, labels) in enumerate(train_loader):
+            images = Variable(images)
+            labels = Variable(labels)
+            if use_cuda:
+                images.cuda()
+                labels.cuda()
+            # Forward + Backward + Optimize
+            optimizer.zero_grad()
+            outputs = cnn(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            print(loss)
+            
+            if (i + 1) % batch_size == 0:
+                print('Epoch [%d/%d], Iter [%d/%d] Loss: %.4f' % (epoch + 1, num_epochs, i + 1, len(train_dataset) // batch_size, loss.data[0]))
+
+        t2 = time()
+
+        print("Epoch time : %0.3f" % (t2-t1))
+
+
+
+    # Test the Model
+    cnn.eval()  # Change model to 'eval' mode (BN uses moving mean/var).
+    correct = 0
+    total = 0
+    for images, labels in val_loader:
+        images = Variable(images) 
+        if use_cuda:
+            images.cuda()
+            labels.cuda()
+        outputs = cnn(images)
+        _, predicted = torch.max(outputs.data, 1)
+        print("predicted")
+        print(predicted)
+        print("labels")
+        print(labels)
+        total += labels.size(0)
+        # An error in checking. Output is never exactly correct.
+        correct += (predicted == labels).sum().item()
+
+    print('Test Accuracy of the model on the 10000 test images: %d %%' % (100 * correct / total))
+
+    # Save the Trained Model
+    #torch.save(cnn, "cnn.pt")
+
+end
